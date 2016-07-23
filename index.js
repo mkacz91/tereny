@@ -10,23 +10,62 @@ $(function() {
     console.error("Sheet ID not provided");
     return;
   }
+  origin = getParam('origin');
+  if (origin === null) {
+    console.error("Origin not provided");
+    return;
+  }
+  origin = origin.split(';').map(parseFloat);
+  if (origin.length != 2) {
+    console.error("Invalid origin format");
+    return;
+  }
+
   loadMapsApi();
 })
 
 var gapiKey;
 var sheetId;
+var origin;
+var gmap;
 
 function allApisLoaded() {
-  console.log("Apis ready");
+  origin = new google.maps.LatLng(origin[0], origin[1]);
 
-  gapi.client.sheets.spreadsheets.get({
-    spreadsheetId: sheetId,
-    key: gapiKey
-  }).then(function(response) {
-      console.log(response);
+  gmap = new google.maps.Map($('#map')[0],
+  {
+    center: origin,
+    zoom: 15
+  });
+  new google.maps.Marker({
+    map: gmap,
+    position: origin,
+    label: 'S'
   });
 
-  initMap();
+  gapi.client.sheets.spreadsheets.values.get({
+    spreadsheetId: sheetId,
+    range: 'Adresy!A2:C10',
+    key: gapiKey
+  }).then(function(response) {
+    var gder = new google.maps.Geocoder();
+    var values = response.result.values;
+    for (var i = 0; i < values.length; ++i) {
+      gder.geocode({
+        address: values[i].join() + ",DE"
+      }, function(result, status) {
+        var loc = result[0].geometry.location;
+        new google.maps.Marker({
+          map: gmap,
+          position: loc,
+          draggable: true
+        });
+      });
+    }
+  }, function(reason) {
+    var error = reason.result.error;
+    console.error("Unable to load sheet: (" + error.code + ") " + error.message);
+  });
 }
 
 function getParam(name) {
